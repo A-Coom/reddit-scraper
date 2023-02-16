@@ -1,6 +1,6 @@
 import json
 import os
-from hashlib import sha512, sha256
+from hashlib import md5, sha256
 from sys import stdout, argv
 from time import sleep
 import requests
@@ -39,10 +39,10 @@ Compute the hashes of files with specified extensions using a specified algorith
 @param dir - String of directory to process.
 @param exts - List of extensions.
 @param algo - Function for the hashing algorithm.
+@param hashes - An initial list of hashes.
 @return a map indexed by hash value storing the file name.
 """
-def compute_file_hashes(dir, exts, algo):
-    ret = {}
+def compute_file_hashes(dir, exts, algo, hashes={}):
     exts_clean = clean_exts(exts)
     for name in os.listdir(dir):
         full_name = os.path.join(dir, name)
@@ -51,8 +51,8 @@ def compute_file_hashes(dir, exts, algo):
             with open(full_name, 'rb') as file_in:
                 file_bytes = file_in.read()
                 file_hash = algo(file_bytes).hexdigest()
-                ret[file_hash] = name
-    return ret
+                hashes[file_hash] = name
+    return hashes
 
 
 """
@@ -110,8 +110,8 @@ Download media from a list of URLs if they have not been seen before.
 def download_urls(dir, urls, hashes, algo):
     for url in urls:
         stdout.write('[download_urls] INFO: Media from %s:\t\t' % (url))
+        ext = url.split('.')[-1]
         if('DASH_' in url):
-            ext = url.split('.')[-1]
             name = url.split('/')[-2] + '.' + ext
         else:
             name = url.split('/')[-1]
@@ -119,12 +119,11 @@ def download_urls(dir, urls, hashes, algo):
         hash = algo(img).hexdigest()
         if(hash not in hashes):
             hashes[hash] = name
-            stdout.write('Downloading as %s\n' % (name))
-            with open(os.path.join(dir, name), 'wb') as file_out:
+            stdout.write('Downloading as %s\n' % (hash + '.' + ext))
+            with open(os.path.join(dir, hash + '.' + ext), 'wb') as file_out:
                 file_out.write(img)
         else:
             stdout.write('Duplicate image of %s\n' % hashes[hash])
-        
     return hashes
 
 
@@ -200,7 +199,7 @@ def main(download_dir, subreddits_file, cmd_password):
     stdout.write('[main] INFO: Computing hashes of all files with extensions %s in (%s).\n' % (EXTS, download_dir))
     loopCounter = 0;
     allUrls = []
-    hashes = compute_file_hashes(download_dir, EXTS, sha512)
+    hashes = compute_file_hashes(download_dir, EXTS, md5)
     
     # Read in the list of subreddits.
     subreddits = []
@@ -236,7 +235,7 @@ def main(download_dir, subreddits_file, cmd_password):
         
         # Iterate the URLs to download files that are not duplicates.
         before = len(hashes)
-        hashes = download_urls(download_dir, urls, hashes, sha512)
+        hashes = download_urls(download_dir, urls, hashes, md5)
         stdout.write('[main] INFO: Downloaded a total of %d new images.\n' % (len(hashes) - before))
                     
         # Increment the loop counter and sleep if not the last iteration
