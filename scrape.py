@@ -252,7 +252,7 @@ Entrypoint
 if __name__ == '__main__':
     stdout.write('\n')
     if(len(argv) < 3):
-        stdout.write('USAGE: %s download_dir subreddits.txt ?reddit_password\n' % (argv[0]))
+        stdout.write('USAGE: %s <download_dir> <subreddits.txt> ?reddit_password?\n' % (argv[0]))
     elif(not os.path.isfile(argv[2])):
         stdout.write('Not a file (%s)\n' % (argv[2]))
     else:
