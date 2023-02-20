@@ -1,3 +1,4 @@
+from scraping_utils.scraping_utils import compute_file_hashes, download_urls, clean_exts
 import json
 import os
 from hashlib import md5, sha256
@@ -5,11 +6,11 @@ from sys import stdout, argv
 from time import sleep
 import requests
 import requests.auth
-
 import base64
 import getpass
 from Crypto import Random
 from Crypto.Cipher import AES
+
 
 # Constants for Reddit routing
 TOKEN_ACCESS_ENDPOINT = 'https://www.reddit.com/api/v1/access_token'
@@ -20,39 +21,6 @@ EXTS = [ 'jpg', 'jpeg', 'png', 'gif', 'mp4' ]
 MAXIMUM_POSTS = 99
 REPEAT = -1
 SLEEP_SECONDS = 3600
-
-
-"""
-Clean a list of extensions to not include a leading dot.
-@param exts - Original list of extensions.
-@return a list of cleaned extensions.
-"""
-def clean_exts(exts):
-    exts_clean = []
-    for ext in exts:
-        exts_clean.append(ext.replace('.', ''))
-    return exts_clean
-
-
-"""
-Compute the hashes of files with specified extensions using a specified algorithm function.
-@param dir - String of directory to process.
-@param exts - List of extensions.
-@param algo - Function for the hashing algorithm.
-@param hashes - An initial list of hashes.
-@return a map indexed by hash value storing the file name.
-"""
-def compute_file_hashes(dir, exts, algo, hashes={}):
-    exts_clean = clean_exts(exts)
-    for name in os.listdir(dir):
-        full_name = os.path.join(dir, name)
-        ext = name.split('.')[-1]
-        if(os.path.isfile(full_name) and ext in exts_clean):
-            with open(full_name, 'rb') as file_in:
-                file_bytes = file_in.read()
-                file_hash = algo(file_bytes).hexdigest()
-                hashes[file_hash] = name
-    return hashes
 
 
 """
@@ -97,34 +65,6 @@ def scrape_subs(subs, seen_urls, headers_get, params_get, exts):
                     new_posts = new_posts + 1
         stdout.write('[scrape_subs] INFO: Got %d images from %d new posts from r/%s!\n' % ((len(new_urls) - start_length), new_posts, sub))
     return new_urls
-
-
-"""
-Download media from a list of URLs if they have not been seen before.
-@param dir - Destination directory for the download.
-@param urls - List of URLs to query.
-@param hashes - Map of seen hashes, indexed by hash with value for the original media name.
-@param algo - Algorithm used by the map of hashes.
-@return the new map of hashes.
-"""
-def download_urls(dir, urls, hashes, algo):
-    for url in urls:
-        stdout.write('[download_urls] INFO: Media from %s:\t\t' % (url))
-        ext = url.split('.')[-1]
-        if('DASH_' in url):
-            name = url.split('/')[-2] + '.' + ext
-        else:
-            name = url.split('/')[-1]
-        img = requests.get(url).content
-        hash = algo(img).hexdigest()
-        if(hash not in hashes):
-            hashes[hash] = name
-            stdout.write('Downloading as %s\n' % (hash + '.' + ext))
-            with open(os.path.join(dir, hash + '.' + ext), 'wb') as file_out:
-                file_out.write(img)
-        else:
-            stdout.write('Duplicate image of %s\n' % hashes[hash])
-    return hashes
 
 
 """
@@ -189,7 +129,7 @@ def decrypt_private(cmd_password):
 """
 Driver function to scrape a list of subreddits and download all new images.
 """
-def main(download_dir, subreddits_file, cmd_password):
+def main(download_dir, subreddits_file, cmd_password=None):
     # Initialize the private information.
     username, password, id, secret = decrypt_private(cmd_password)
     if(username is None):
@@ -242,7 +182,7 @@ def main(download_dir, subreddits_file, cmd_password):
         
         # Iterate the URLs to download files that are not duplicates.
         before = len(hashes)
-        hashes = download_urls(download_dir, urls, hashes, md5)
+        hashes = download_urls(download_dir, urls, algo=md5, hashes=hashes)
         stdout.write('[main] INFO: Downloaded a total of %d new images.\n' % (len(hashes) - before))
                     
         # Increment the loop counter and sleep if not the last iteration
@@ -262,8 +202,10 @@ if __name__ == '__main__':
     elif(not os.path.isfile(argv[2])):
         stdout.write('Not a file (%s)\n' % (argv[2]))
     else:
+        if(not os.path.isdir(argv[1])):
+            os.mkdir(argv[1])
         if(len(argv) > 3):
             main(argv[1], argv[2], argv[3])
         else:
-            main(argv[1], argv[2], None)
+            main(argv[1], argv[2])
     stdout.write('\n')
