@@ -210,6 +210,7 @@ def main(download_dir, subreddits_file, cmd_password):
                 subreddits.append(line)
 
     # Define the authentication parameters.
+    stdout.write('[main] INFO: Fetching authentication from Reddit.\n')
     client_auth = requests.auth.HTTPBasicAuth(id, secret)
     post_data = { 'grant_type': 'password', 'username': username, 'password': password }
     headers = { 'User-Agent': 'Python App' }
@@ -217,7 +218,12 @@ def main(download_dir, subreddits_file, cmd_password):
     # Get the access token
     response = requests.post(TOKEN_ACCESS_ENDPOINT, data=post_data, headers=headers, auth=client_auth)
     if(response.status_code == 200):
-        access_token = response.json()['access_token']
+        response_json = response.json()
+        if('error' not in response_json):
+            access_token = response_json['access_token']
+        else:
+            stdout.write('[main] INFO: Failed to fetch. Error: %s\n' % (response_json['error']))
+            return
     else:
         stdout.write('[main] INFO: Could not resolve access token.\n')
         stdout.write('[main] INFO: If problem persists, delete the creds file and re-enter information.\n')
@@ -230,6 +236,7 @@ def main(download_dir, subreddits_file, cmd_password):
     # Perform the scraping loop
     while(loopCounter < REPEAT or REPEAT == -1):
         # Get all image URLs from posts in the subreddits until reaching a post that been seen before.
+        stdout.write('[main] INFO: Scrapping (%d) subreddits for all media URLs.\n' % (len(subreddits)))
         urls = scrape_subs(subreddits, allUrls, headers_get, params_get, EXTS)
         allUrls = allUrls + urls
         
